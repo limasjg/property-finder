@@ -1,6 +1,7 @@
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 from config import BASE_URL, REQUEST_TIMEOUT, HEADERS
+from html import escape
 import time
 
 
@@ -101,6 +102,33 @@ def validar_acesso_url(url=None):
         return False
 
 
+def extrair_imagem_card(card):
+    """
+    Extrai a URL da imagem principal de um card de imóvel.
+    """
+    for img in card.find_all('img'):
+        imagem = (
+            img.get('src') or
+            img.get('data-src') or
+            img.get('data-flickity-lazyload') or
+            img.get('data-original')
+        )
+
+        if not imagem:
+            continue
+
+        if imagem.startswith('//'):
+            imagem = 'https:' + imagem
+        elif imagem.startswith('/'):
+            imagem = 'https://www.imovelweb.com.br' + imagem
+
+        # Fotos dos anúncios ficam em /avisos/; logos de imobiliárias ficam em outro caminho.
+        if '/avisos/' in imagem:
+            return imagem
+
+    return 'N/A'
+
+
 def extrair_imoveis(url=None, debug=False, top_n=None):
     """
     Extrai lista de imóveis da página.
@@ -113,7 +141,7 @@ def extrair_imoveis(url=None, debug=False, top_n=None):
     
     Returns:
         list: Lista de dicionários com dados dos imóveis.
-              Cada dicionário tem: {'titulo', 'preco', 'link', 'data_id'}
+              Cada dicionário tem: {'titulo', 'preco', 'link', 'id', 'imagem'}
     
     Raises:
         Exception: Se a extração falhar.
@@ -191,6 +219,8 @@ def extrair_imoveis(url=None, debug=False, top_n=None):
                     if 'R$' in texto_str and len(texto_str) < 30:  # Filtro para não pegar descrição longa
                         preco = texto_str
                         break
+
+            imagem = extrair_imagem_card(card)
             
             # Somente adiciona se temos dados válidos
             if titulo != 'N/A' or preco != 'N/A' or link != 'N/A':
@@ -198,7 +228,8 @@ def extrair_imoveis(url=None, debug=False, top_n=None):
                     'id': imovel_id,
                     'titulo': titulo,
                     'preco': preco,
-                    'link': link
+                    'link': link,
+                    'imagem': imagem
                 }
                 
                 imoveis.append(imovel)
@@ -208,6 +239,7 @@ def extrair_imoveis(url=None, debug=False, top_n=None):
                     print(f"  - Título: {titulo[:60]}")
                     print(f"  - Preço: {preco}")
                     print(f"  - Link: {link[:70]}")
+                    print(f"  - Imagem: {imagem[:70]}")
         
         except Exception as e:
             if debug:
@@ -271,6 +303,14 @@ def enviar_email(imoveis, debug=False):
                         border-left: 4px solid #3498db;
                         border-radius: 4px;
                     }}
+                    .imagem-imovel {{
+                        width: 100%;
+                        max-width: 360px;
+                        height: auto;
+                        display: block;
+                        margin: 0 0 12px 0;
+                        border-radius: 4px;
+                    }}
                     .numero {{ color: #3498db; font-weight: bold; font-size: 16px; }}
                     .titulo {{ font-weight: bold; color: #2c3e50; margin: 10px 0 5px 0; }}
                     .preco {{ color: #27ae60; font-size: 18px; font-weight: bold; margin: 5px 0; }}
@@ -288,13 +328,26 @@ def enviar_email(imoveis, debug=False):
         
         # Adiciona cada imóvel
         for idx, imovel in enumerate(imoveis, 1):
+            imagem = imovel.get('imagem')
+            imagem_html = ""
+            if imagem and imagem != 'N/A':
+                imagem_segura = escape(imagem, quote=True)
+                alt_seguro = escape(imovel.get('titulo', 'Imagem do imóvel'), quote=True)
+                imagem_html = f'<img src="{imagem_segura}" alt="{alt_seguro}" class="imagem-imovel">'
+
+            titulo = escape(imovel.get('titulo', 'N/A')[:200], quote=True)
+            preco = escape(imovel.get('preco', 'N/A'), quote=True)
+            link = escape(imovel.get('link', 'N/A'), quote=True)
+            imovel_id = escape(imovel.get('id', 'N/A'), quote=True)
+
             html_content += f"""
                     <div class="imovel">
                         <div class="numero">#{idx}</div>
-                        <div class="titulo">{imovel['titulo'][:200]}...</div>
-                        <div class="preco">{imovel['preco']}</div>
-                        <div><a href="{imovel['link']}" class="link" target="_blank">Ver anúncio completo →</a></div>
-                        <div class="id">ID: {imovel['id']}</div>
+                        {imagem_html}
+                        <div class="titulo">{titulo}...</div>
+                        <div class="preco">{preco}</div>
+                        <div><a href="{link}" class="link" target="_blank">Ver anúncio completo →</a></div>
+                        <div class="id">ID: {imovel_id}</div>
                     </div>
             """
         
@@ -314,10 +367,11 @@ def enviar_email(imoveis, debug=False):
         text_content += f"Executado em: {datetime.now().strftime('%d/%m/%Y às %H:%M:%S')}\n\n"
         
         for idx, imovel in enumerate(imoveis, 1):
-            text_content += f"{idx}. {imovel['titulo'][:200]}...\n"
-            text_content += f"   Preço: {imovel['preco']}\n"
-            text_content += f"   Link: {imovel['link']}\n"
-            text_content += f"   ID: {imovel['id']}\n\n"
+            text_content += f"{idx}. {imovel.get('titulo', 'N/A')[:200]}...\n"
+            text_content += f"   Preço: {imovel.get('preco', 'N/A')}\n"
+            text_content += f"   Link: {imovel.get('link', 'N/A')}\n"
+            text_content += f"   Imagem: {imovel.get('imagem', 'N/A')}\n"
+            text_content += f"   ID: {imovel.get('id', 'N/A')}\n\n"
         
         # Adiciona partes à mensagem
         msg.attach(MIMEText(text_content, 'plain', 'utf-8'))
