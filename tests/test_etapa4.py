@@ -1,12 +1,9 @@
 import pytest
-import sys
-import os
 
-# Adiciona o diretório pai ao path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from property_finder.scraper import extrair_imoveis
 
-from scraper import extrair_imoveis
-from config import BASE_URL
+
+pytestmark = pytest.mark.integration
 
 
 class TestEtapa4:

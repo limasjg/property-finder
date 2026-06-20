@@ -1,12 +1,7 @@
 import pytest
-import sys
-from unittest.mock import patch, MagicMock
 
-# Adiciona o diretório pai ao path
-sys.path.insert(0, r'c:\projects\property-finder')
-
-from scraper import acessar_url, validar_acesso_url
-from config import BASE_URL
+from property_finder.scraper import acessar_url, validar_acesso_url
+from property_finder.config import BASE_URL
 
 
 class TestEtapa1:
@@ -24,12 +19,12 @@ class TestEtapa1:
     
     def test_funcao_possui_timeout(self):
         """Testa que scraper tem timeout configurado"""
-        from config import REQUEST_TIMEOUT
+        from property_finder.config import REQUEST_TIMEOUT
         assert REQUEST_TIMEOUT == 10
     
     def test_funcao_possui_headers(self):
         """Testa que scraper tem headers configurados"""
-        from config import HEADERS
+        from property_finder.config import HEADERS
         assert isinstance(HEADERS, dict)
         assert 'User-Agent' in HEADERS
     
@@ -42,6 +37,8 @@ class TestEtapa1:
 
 class TestEtapa1Integracao:
     """Testes de integração para Etapa 1"""
+
+    pytestmark = pytest.mark.integration
     
     def test_validar_acesso_url_com_google(self):
         """Testa validação com URL confiável (Google)"""

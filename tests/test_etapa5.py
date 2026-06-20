@@ -1,12 +1,7 @@
 import pytest
-import sys
-import os
 
-# Adiciona o diretório pai ao path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from scraper import enviar_email
-from config import EMAIL_SENDER, EMAIL_RECIPIENT
+from property_finder.scraper import enviar_email
+from property_finder.config import EMAIL_SENDER, EMAIL_RECIPIENT
 
 
 class TestEtapa5:

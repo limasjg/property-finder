@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Property Finder local artifacts
+data/ids_vistos.json
+output/
+resultado_busca.json
+resultado_busca.txt

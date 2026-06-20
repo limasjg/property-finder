@@ -1,8 +1,10 @@
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
-from config import BASE_URL, REQUEST_TIMEOUT, HEADERS
+from .config import BASE_URL, REQUEST_TIMEOUT, HEADERS
 from html import escape
 import time
+import os
+import json
 
 
 def acessar_url(url=None):
@@ -158,6 +160,7 @@ def extrair_imoveis(url=None, debug=False, top_n=None):
     soup = BeautifulSoup(response.text, 'html.parser')
     
     imoveis = []
+    ids_extraidos = set()  # controle de duplicatas por ID
     
     # Padrão 1: Procura por cards com data-posting-type="PROPERTY"
     cards = soup.find_all('div', attrs={'data-posting-type': 'PROPERTY'})
@@ -222,8 +225,13 @@ def extrair_imoveis(url=None, debug=False, top_n=None):
 
             imagem = extrair_imagem_card(card)
             
-            # Somente adiciona se temos dados válidos
+            # Somente adiciona se temos dados válidos e ID ainda não visto
             if titulo != 'N/A' or preco != 'N/A' or link != 'N/A':
+                if imovel_id in ids_extraidos:
+                    if debug:
+                        print(f"[EXTRACT DEBUG] Duplicata ignorada: ID {imovel_id}")
+                    continue
+                ids_extraidos.add(imovel_id)
                 imovel = {
                     'id': imovel_id,
                     'titulo': titulo,
@@ -246,6 +254,13 @@ def extrair_imoveis(url=None, debug=False, top_n=None):
                 print(f"[EXTRACT DEBUG] Erro ao processar card {idx}: {e}")
             continue
     
+    total_cards = len(cards)
+    total_unicos = len(imoveis)
+    duplicatas = total_cards - total_unicos
+    print(f"[INFO] Página analisada: {total_cards} cards encontrados, "
+          f"{total_unicos} imóveis únicos"
+          + (f", {duplicatas} duplicata(s) removida(s)" if duplicatas > 0 else ""))
+
     # Retorna apenas top_n se especificado
     if top_n:
         imoveis = imoveis[:top_n]
@@ -253,6 +268,63 @@ def extrair_imoveis(url=None, debug=False, top_n=None):
             print(f"[EXTRACT DEBUG] Retornando apenas {top_n} imóveis mais recentes")
     
     return imoveis
+
+
+def carregar_ids_vistos(arquivo='ids_vistos.json'):
+    """
+    Carrega IDs de imóveis já vistos do arquivo.
+
+    Returns:
+        set: Conjunto de IDs já vistos. Vazio se arquivo não existe.
+    """
+    if not os.path.exists(arquivo):
+        return set()
+    try:
+        with open(arquivo, 'r', encoding='utf-8') as f:
+            dados = json.load(f)
+        return set(dados.get('ids', []))
+    except Exception:
+        return set()
+
+
+def salvar_ids_vistos(ids, arquivo='ids_vistos.json'):
+    """
+    Salva IDs de imóveis vistos no arquivo para uso futuro.
+
+    Args:
+        ids (set): Conjunto de IDs a salvar.
+        arquivo (str): Caminho do arquivo JSON.
+    """
+    from datetime import datetime
+    dados = {
+        'ultima_execucao': datetime.now().isoformat(),
+        'ids': list(ids)
+    }
+    with open(arquivo, 'w', encoding='utf-8') as f:
+        json.dump(dados, f, ensure_ascii=False, indent=2)
+
+
+def filtrar_novos_imoveis(imoveis, ids_vistos, max_novos=8):
+    """
+    Filtra imóveis que ainda não foram vistos.
+
+    Args:
+        imoveis (list): Lista de imóveis extraídos.
+        ids_vistos (set): Conjunto de IDs já vistos.
+        max_novos (int): Limite máximo de novos imóveis a retornar.
+
+    Returns:
+        list: Lista de imóveis novos, limitada a max_novos.
+    """
+    novos = []
+    ids_novos = set()
+    for im in imoveis:
+        if im['id'] not in ids_vistos and im['id'] != 'N/A' and im['id'] not in ids_novos:
+            ids_novos.add(im['id'])
+            novos.append(im)
+            if len(novos) == max_novos:
+                break
+    return novos
 
 
 def enviar_email(imoveis, debug=False):
@@ -272,7 +344,7 @@ def enviar_email(imoveis, debug=False):
     import smtplib
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
-    from config import EMAIL_SENDER, EMAIL_RECIPIENT, EMAIL_PASSWORD, SMTP_SERVER, SMTP_PORT
+    from .config import EMAIL_SENDER, EMAIL_RECIPIENT, EMAIL_PASSWORD, SMTP_SERVER, SMTP_PORT
     from datetime import datetime
     
     if not EMAIL_PASSWORD:

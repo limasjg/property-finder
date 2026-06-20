@@ -1,5 +1,13 @@
 from playwright.sync_api import sync_playwright
-from config import BASE_URL
+from pathlib import Path
+import sys
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+SRC_DIR = ROOT_DIR / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from property_finder.config import BASE_URL
 import time
 
 try:

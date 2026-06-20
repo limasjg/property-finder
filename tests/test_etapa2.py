@@ -1,9 +1,10 @@
 import pytest
-import sys
-sys.path.insert(0, r'c:\projects\property-finder')
 
-from scraper import extrair_imoveis
-from config import BASE_URL
+from property_finder.scraper import extrair_imoveis
+from property_finder.config import BASE_URL
+
+
+pytestmark = pytest.mark.integration
 
 
 class TestEtapa2:

@@ -1,6 +1,14 @@
-from scraper import acessar_url
+from pathlib import Path
+import sys
 from bs4 import BeautifulSoup
-from config import BASE_URL
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+SRC_DIR = ROOT_DIR / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from property_finder.scraper import acessar_url
+from property_finder.config import BASE_URL
 
 print("Analisando estrutura HTML do Imovelweb...\n")
 

@@ -1,9 +1,15 @@
 # Configuração do projeto
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Carrega variáveis do arquivo .env
 load_dotenv()
+
+# Diretórios-base
+BASE_DIR = Path(__file__).resolve().parents[2]
+DATA_DIR = BASE_DIR / "data"
+OUTPUT_DIR = BASE_DIR / "output"
 
 # URL do Imovelweb para busca de imóveis
 BASE_URL = "https://www.imovelweb.com.br/casas-venda-bacacheri-bairro-alto-curitiba-taruma-curitiba-cristo-rei-curitiba-alto-da-xv-curitiba-alto-da-gloria-curitiba-juveve-batel-curitiba-bigorrilho-vila-izabel-curitiba-hugo-lange-jardim-social-curitiba-sao-francisco-curitiba-seminario-curitiba-mais-de-2-quartos-mais-60-m2-util-menos-600000-reales-ordem-publicado-maior.html"
@@ -31,3 +37,9 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 # Configuração SMTP
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
+
+# Arquivo para persistir IDs de imóveis já vistos (Etapa 6)
+ARQUIVO_IDS_VISTOS = str(DATA_DIR / "ids_vistos.json")
+
+# Arquivo de saída com os novos anúncios
+ARQUIVO_RESULTADO_JSON = str(OUTPUT_DIR / "resultado_busca.json")
