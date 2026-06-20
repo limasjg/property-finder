@@ -37,31 +37,34 @@ def acessar_url(url=None):
             response = page.goto(url, wait_until="domcontentloaded", timeout=30000)
             
             # IMPORTANTE: Aguarda desafio do Cloudflare ser resolvido
-            # Verifica se está na página de desafio
             print(f"[DEBUG] Aguardando resolução do Cloudflare...")
             for i in range(30):  # Tenta por até 30 segundos
                 html = page.content()
-                
-                # Verifica se página carregou (tamanho > 5000 bytes)
+
                 if "Just a moment" not in html and len(html) > 5000:
-                    print(f"[DEBUG] OK - Página carregada em {i} segundos!")
+                    print(f"[DEBUG] OK - Cloudflare resolvido em {i} segundos!")
                     break
-                    
-                # Tenta clicar em qualquer elemento interativo se necessário
+
                 if i == 5 and "Just a moment" in html:
                     try:
-                        # Procura por botão de verificação
                         page.click('button', force=True)
                     except:
                         pass
-                
+
                 if i % 5 == 0:
                     print(f"[DEBUG] Aguardando... {i}s - HTML length: {len(html)}")
-                    
+
                 time.sleep(1)
-            
-            # Aguarda renderização de conteúdo dinâmico
-            time.sleep(2)
+
+            # Aguarda os cards de imóveis aparecerem no DOM (conteúdo dinâmico)
+            SELECTOR_CARDS = '[data-posting-type="PROPERTY"]'
+            try:
+                page.wait_for_selector(SELECTOR_CARDS, timeout=20000)
+                print(f"[DEBUG] Cards de imóveis detectados no DOM!")
+            except Exception:
+                # Site pode estar sem resultados ou com estrutura diferente;
+                # continua com o HTML disponível
+                print(f"[DEBUG] Timeout aguardando cards — continuando com HTML atual (len={len(page.content())})")
             
             # Obtém o HTML
             html = page.content()
