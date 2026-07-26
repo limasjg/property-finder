@@ -6,10 +6,12 @@ Monitoramento de anuncios do Imovelweb para Windows, com foco em simplicidade e 
 
 - Acessa uma URL configuravel do Imovelweb.
 - Extrai os anuncios da primeira pagina.
-- Remove duplicatas por ID.
-- Compara com IDs ja vistos.
+- Remove duplicatas por **ID** e por **fingerprint** (titulo + preco normalizado).
+- Compara com IDs e fingerprints ja vistos.
 - Envia por email apenas anuncios novos (maximo de 8).
 - Nao envia email quando nao ha novidades.
+
+A deduplicacao dupla detecta imoveis repetidos mesmo quando mudam de ID no site.
 
 ## Estrutura
 
@@ -57,6 +59,22 @@ python main.py
 ```powershell
 python -m pytest -v
 ```
+
+## Interface Web (Testes Locais)
+
+Para testar o scraper sem depender de email, use a interface web moderna:
+
+```powershell
+python server.py
+```
+
+Acesse **http://localhost:5000** e teste:
+- Buscar novos imóveis com um clique
+- Visualizar resultados em cards modernos
+- Ver histórico de buscas anteriores
+- Monitorar status em tempo real
+
+Veja [SERVER.md](SERVER.md) para documentação completa da API.
 
 ## Comportamento esperado
 
