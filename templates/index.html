@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Property Finder - Monitor de Imóveis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .badge-success {
+            @apply bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium;
+        }
+        .badge-info {
+            @apply bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium;
+        }
+        .price-highlight {
+            @apply text-2xl font-bold text-green-600;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen text-white">
+    <div class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-slate-900 border-b border-slate-700 shadow-lg">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                            <span class="text-lg font-bold">🏠</span>
+                        </div>
+                        <div>
+                            <h1 class="text-3xl font-bold">Property Finder</h1>
+                            <p class="text-slate-400 text-sm">Monitor de imóveis em tempo real</p>
+                        </div>
+                    </div>
+                    <div id="status-badge" class="badge-info">Carregando...</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+
+            <!-- Status Section -->
+            <div id="status-section" class="bg-slate-800 rounded-lg p-6 mb-8 border border-slate-700">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                            <span class="text-2xl">📍</span>
+                        </div>
+                        <div>
+                            <p class="text-slate-400 text-sm">IDs Conhecidos</p>
+                            <p id="status-ids" class="text-2xl font-bold">--</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                            <span class="text-2xl">🔍</span>
+                        </div>
+                        <div>
+                            <p class="text-slate-400 text-sm">Fingerprints</p>
+                            <p id="status-fps" class="text-2xl font-bold">--</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                            <span class="text-2xl">✓</span>
+                        </div>
+                        <div>
+                            <p class="text-slate-400 text-sm">Última atualização</p>
+                            <p id="status-time" class="text-2xl font-bold">--</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Button -->
+            <div class="flex gap-4 mb-8">
+                <button id="buscar-btn" onclick="buscarImoveis()"
+                    class="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-bold py-4 px-6 rounded-lg transition duration-200 flex items-center justify-center gap-2 shadow-lg">
+                    <span id="buscar-icon">🔎</span>
+                    <span id="buscar-text">Buscar Imóveis</span>
+                </button>
+                <button onclick="carregarHistorico()"
+                    class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-4 px-6 rounded-lg transition duration-200 flex items-center gap-2">
+                    <span>📋</span>
+                    <span>Histórico</span>
+                </button>
+            </div>
+
+            <!-- Results Section -->
+            <div id="results-section" style="display: none;">
+                <div class="mb-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <h2 class="text-2xl font-bold">Resultados</h2>
+                        <span id="result-badge" class="badge-success"></span>
+                    </div>
+                    <p id="result-message" class="text-slate-300"></p>
+                </div>
+
+                <div id="imoveis-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                    <!-- Cards de imóveis serão inseridos aqui -->
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="bg-slate-800 rounded-lg p-12 text-center border border-slate-700">
+                <p class="text-5xl mb-4">📱</p>
+                <h3 class="text-xl font-bold mb-2">Nenhuma busca realizada</h3>
+                <p class="text-slate-400">Clique no botão "Buscar Imóveis" para começar</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="error-section" style="display: none;" class="bg-red-500/20 border border-red-500 rounded-lg p-6 mb-8">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">⚠️</span>
+                    <div>
+                        <h3 class="font-bold">Erro ao buscar imóveis</h3>
+                        <p id="error-message" class="text-sm text-red-100 mt-1"></p>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-slate-900 border-t border-slate-700 mt-12">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-slate-400 text-sm">
+                <p>Property Finder • Monitor de imóveis local</p>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // Estado da aplicação
+        const state = {
+            isLoading: false,
+            lastResults: null,
+        };
+
+        // Carrega status ao iniciar
+        window.addEventListener('DOMContentLoaded', () => {
+            carregarStatus();
+        });
+
+        async function carregarStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('status-ids').textContent = data.status.ids_vistos;
+                    document.getElementById('status-fps').textContent = data.status.fingerprints_vistos;
+
+                    if (data.status.ultimo_resultado) {
+                        const data_exec = new Date(data.status.ultimo_resultado.data_execucao);
+                        document.getElementById('status-time').textContent = data_exec.toLocaleString('pt-BR');
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar status:', error);
+            }
+        }
+
+        async function buscarImoveis() {
+            if (state.isLoading) return;
+
+            state.isLoading = true;
+            const btn = document.getElementById('buscar-btn');
+            const icon = document.getElementById('buscar-icon');
+            const text = document.getElementById('buscar-text');
+
+            btn.disabled = true;
+            icon.textContent = '⏳';
+            icon.classList.add('spinner');
+            text.textContent = 'Buscando...';
+
+            // Esconde estado vazio e seção de erro
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('error-section').style.display = 'none';
+            document.getElementById('results-section').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/buscar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    state.lastResults = data.novos;
+                    exibirResultados(data.novos, data.total);
+                    carregarStatus();
+                } else {
+                    exibirErro(data.error || 'Erro desconhecido');
+                }
+            } catch (error) {
+                exibirErro('Erro ao conectar ao servidor: ' + error.message);
+            } finally {
+                state.isLoading = false;
+                btn.disabled = false;
+                icon.textContent = '🔎';
+                icon.classList.remove('spinner');
+                text.textContent = 'Buscar Imóveis';
+            }
+        }
+
+        function exibirResultados(imoveis, total) {
+            const resultSection = document.getElementById('results-section');
+            const grid = document.getElementById('imoveis-grid');
+            const message = document.getElementById('result-message');
+            const badge = document.getElementById('result-badge');
+
+            if (total === 0) {
+                message.textContent = 'Nenhum imóvel novo encontrado nesta busca.';
+                badge.textContent = '0 novos';
+                badge.className = 'badge-info';
+                grid.innerHTML = '';
+            } else {
+                message.textContent = `Encontrados ${total} ${total === 1 ? 'imóvel novo' : 'imóveis novos'} que não estavam no histórico.`;
+                badge.textContent = `${total} novo${total > 1 ? 's' : ''}`;
+                badge.className = 'badge-success';
+                grid.innerHTML = imoveis.map((imovel, idx) => `
+                    <div class="fade-in card-hover bg-slate-800 rounded-lg overflow-hidden border border-slate-700 transition duration-200 cursor-pointer"
+                         style="animation-delay: ${idx * 50}ms;">
+                        <div class="aspect-video bg-slate-700 flex items-center justify-center overflow-hidden relative">
+                            ${imovel.imagem !== 'N/A' ? `
+                                <img src="${imovel.imagem}" alt="${imovel.titulo}"
+                                     class="w-full h-full object-cover"
+                                     onerror="this.parentElement.innerHTML='<span class=\"text-slate-500\">Imagem não disponível</span>'">
+                            ` : `
+                                <span class="text-slate-500">📸 Sem imagem</span>
+                            `}
+                        </div>
+                        <div class="p-5">
+                            <h3 class="font-bold text-lg mb-2 line-clamp-2">${imovel.titulo}</h3>
+                            <p class="price-highlight mb-4">${imovel.preco}</p>
+                            <p class="text-slate-400 text-xs mb-4">ID: ${imovel.id}</p>
+                            <a href="${imovel.link}" target="_blank"
+                               class="block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded text-center transition duration-200">
+                                Ver Anúncio
+                            </a>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            resultSection.style.display = 'block';
+            resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function exibirErro(mensagem) {
+            const errorSection = document.getElementById('error-section');
+            const errorMessage = document.getElementById('error-message');
+            errorMessage.textContent = mensagem;
+            errorSection.style.display = 'block';
+            document.getElementById('results-section').style.display = 'none';
+            errorSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        async function carregarHistorico() {
+            try {
+                const response = await fetch('/api/historico');
+                const data = await response.json();
+
+                if (data.success && data.historico.length > 0) {
+                    exibirResultados(data.historico, data.historico.length);
+                } else {
+                    exibirErro('Nenhum histórico disponível. Execute uma busca primeiro.');
+                }
+            } catch (error) {
+                exibirErro('Erro ao carregar histórico: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
