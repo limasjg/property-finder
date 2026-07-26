@@ -135,7 +135,7 @@ def api_buscar():
 
 @app.route('/api/historico')
 def api_historico():
-    """Retorna o histórico de buscas."""
+    """Retorna o histórico de buscas (últimos 8 imóveis)."""
     try:
         resultado_path = OUTPUT_DIR / 'resultado_busca.json'
         if not resultado_path.exists():
@@ -144,9 +144,13 @@ def api_historico():
         with open(resultado_path, 'r', encoding='utf-8') as f:
             resultado = json.load(f)
 
+        imoveis = resultado.get('imoveis', [])
+        # Retorna apenas os últimos 8 imóveis
+        imoveis_limitados = imoveis[-8:] if len(imoveis) > 8 else imoveis
+
         return jsonify({
             'success': True,
-            'historico': resultado.get('imoveis', []),
+            'historico': imoveis_limitados,
             'data_execucao': resultado.get('data_execucao', None),
         })
     except Exception as e:
