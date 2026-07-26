@@ -50,7 +50,10 @@
                             <p class="text-slate-400 text-sm">Monitor de imóveis em tempo real</p>
                         </div>
                     </div>
-                    <div id="status-badge" class="badge-info">Carregando...</div>
+                    <div class="flex items-center gap-2">
+                        <span id="status-indicator" class="w-3 h-3 bg-green-500 rounded-full"></span>
+                        <span id="status-badge" class="badge-info">Online</span>
+                    </div>
                 </div>
             </div>
         </header>
@@ -186,11 +189,16 @@
             const btn = document.getElementById('buscar-btn');
             const icon = document.getElementById('buscar-icon');
             const text = document.getElementById('buscar-text');
+            const statusBadge = document.getElementById('status-badge');
+            const statusIndicator = document.getElementById('status-indicator');
 
             btn.disabled = true;
             icon.textContent = '⏳';
             icon.classList.add('spinner');
             text.textContent = 'Buscando...';
+            statusBadge.textContent = 'Buscando...';
+            statusBadge.className = 'badge-info';
+            statusIndicator.className = 'w-3 h-3 bg-yellow-500 rounded-full';
 
             // Esconde estado vazio e seção de erro
             document.getElementById('empty-state').style.display = 'none';
@@ -208,11 +216,20 @@
                     state.lastResults = data.novos;
                     exibirResultados(data.novos, data.total);
                     carregarStatus();
+                    statusBadge.textContent = 'Online';
+                    statusBadge.className = 'badge-success';
+                    statusIndicator.className = 'w-3 h-3 bg-green-500 rounded-full';
                 } else {
                     exibirErro(data.error || 'Erro desconhecido');
+                    statusBadge.textContent = 'Erro';
+                    statusBadge.className = 'bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium';
+                    statusIndicator.className = 'w-3 h-3 bg-red-500 rounded-full';
                 }
             } catch (error) {
                 exibirErro('Erro ao conectar ao servidor: ' + error.message);
+                statusBadge.textContent = 'Erro';
+                statusBadge.className = 'bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium';
+                statusIndicator.className = 'w-3 h-3 bg-red-500 rounded-full';
             } finally {
                 state.isLoading = false;
                 btn.disabled = false;
@@ -280,14 +297,35 @@
                 const response = await fetch('/api/historico');
                 const data = await response.json();
 
-                if (data.success && data.historico.length > 0) {
-                    exibirResultados(data.historico, data.historico.length);
+                if (data.success) {
+                    if (data.historico && data.historico.length > 0) {
+                        exibirResultados(data.historico, data.historico.length);
+                    } else {
+                        exibirResultadosVazios();
+                    }
                 } else {
-                    exibirErro('Nenhum histórico disponível. Execute uma busca primeiro.');
+                    exibirErro('Erro ao carregar histórico: ' + data.error);
                 }
             } catch (error) {
-                exibirErro('Erro ao carregar histórico: ' + error.message);
+                exibirErro('Erro ao conectar ao servidor: ' + error.message);
             }
+        }
+
+        function exibirResultadosVazios() {
+            const resultSection = document.getElementById('results-section');
+            const grid = document.getElementById('imoveis-grid');
+            const message = document.getElementById('result-message');
+            const badge = document.getElementById('result-badge');
+
+            message.textContent = 'Nenhum imóvel no histórico. Execute uma busca para começar.';
+            badge.textContent = 'Vazio';
+            badge.className = 'badge-info';
+            grid.innerHTML = '';
+
+            resultSection.style.display = 'block';
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('error-section').style.display = 'none';
+            resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     </script>
 </body>
