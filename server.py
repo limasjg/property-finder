@@ -135,26 +135,41 @@ def api_buscar():
 
 @app.route('/api/historico')
 def api_historico():
-    """Retorna o histórico de buscas (últimos 8 imóveis)."""
+    """Busca os últimos 8 imóveis da página (histórico de todas as buscas)."""
     try:
-        resultado_path = OUTPUT_DIR / 'resultado_busca.json'
-        if not resultado_path.exists():
-            return jsonify({'success': True, 'historico': []})
+        # Valida acesso à URL
+        if not validar_acesso_url():
+            return jsonify({
+                'success': False,
+                'error': 'Falha ao acessar a URL. Verifique sua conexão.'
+            }), 500
 
-        with open(resultado_path, 'r', encoding='utf-8') as f:
-            resultado = json.load(f)
+        # Extrai todos os imóveis da página
+        imoveis = extrair_imoveis(debug=False)
+        if not imoveis:
+            return jsonify({
+                'success': True,
+                'historico': [],
+                'mensagem': 'Nenhum imóvel encontrado na página.'
+            })
 
-        imoveis = resultado.get('imoveis', [])
-        # Retorna apenas os últimos 8 imóveis
+        # Retorna apenas os últimos 8 imóveis (os mais recentes)
         imoveis_limitados = imoveis[-8:] if len(imoveis) > 8 else imoveis
 
         return jsonify({
             'success': True,
             'historico': imoveis_limitados,
-            'data_execucao': resultado.get('data_execucao', None),
+            'total': len(imoveis_limitados),
+            'data_execucao': datetime.now().isoformat(),
         })
+
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Erro ao buscar histórico: {str(e)}'
+        }), 500
 
 
 if __name__ == '__main__':

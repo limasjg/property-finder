@@ -293,6 +293,25 @@
         }
 
         async function carregarHistorico() {
+            if (state.isLoading) return;
+
+            state.isLoading = true;
+            const historicoBtn = event.target.closest('button');
+            const btnText = historicoBtn.querySelector('span:last-child');
+            const btnIcon = historicoBtn.querySelector('span:first-child');
+            const originalText = btnText.textContent;
+            const originalIcon = btnIcon.textContent;
+
+            historicoBtn.disabled = true;
+            btnIcon.textContent = '⏳';
+            btnIcon.classList.add('spinner');
+            btnText.textContent = 'Carregando...';
+
+            // Esconde estado vazio e seção de erro
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('error-section').style.display = 'none';
+            document.getElementById('results-section').style.display = 'none';
+
             try {
                 const response = await fetch('/api/historico');
                 const data = await response.json();
@@ -308,6 +327,12 @@
                 }
             } catch (error) {
                 exibirErro('Erro ao conectar ao servidor: ' + error.message);
+            } finally {
+                state.isLoading = false;
+                historicoBtn.disabled = false;
+                btnIcon.textContent = originalIcon;
+                btnIcon.classList.remove('spinner');
+                btnText.textContent = originalText;
             }
         }
 
@@ -317,7 +342,7 @@
             const message = document.getElementById('result-message');
             const badge = document.getElementById('result-badge');
 
-            message.textContent = 'Nenhum imóvel no histórico. Execute uma busca para começar.';
+            message.textContent = 'Nenhum imóvel encontrado na página no momento.';
             badge.textContent = 'Vazio';
             badge.className = 'badge-info';
             grid.innerHTML = '';
