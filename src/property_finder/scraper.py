@@ -5,6 +5,13 @@ from html import escape
 import time
 import os
 import json
+import re
+
+
+def _gerar_fingerprint(titulo: str, preco: str) -> str:
+    titulo_norm = re.sub(r'\s+', ' ', titulo.lower().strip())
+    preco_norm  = re.sub(r'[^\d]', '', preco)
+    return f"{titulo_norm}|{preco_norm}"
 
 
 def acessar_url(url=None):
@@ -164,6 +171,7 @@ def extrair_imoveis(url=None, debug=False, top_n=None):
     
     imoveis = []
     ids_extraidos = set()  # controle de duplicatas por ID
+    fps_extraidos = set()  # controle de duplicatas por fingerprint
     
     # Padrão 1: Procura por cards com data-posting-type="PROPERTY"
     cards = soup.find_all('div', attrs={'data-posting-type': 'PROPERTY'})
@@ -227,14 +235,16 @@ def extrair_imoveis(url=None, debug=False, top_n=None):
                         break
 
             imagem = extrair_imagem_card(card)
-            
+
             # Somente adiciona se temos dados válidos e ID ainda não visto
             if titulo != 'N/A' or preco != 'N/A' or link != 'N/A':
-                if imovel_id in ids_extraidos:
+                fp = _gerar_fingerprint(titulo, preco)
+                if imovel_id in ids_extraidos or fp in fps_extraidos:
                     if debug:
                         print(f"[EXTRACT DEBUG] Duplicata ignorada: ID {imovel_id}")
                     continue
                 ids_extraidos.add(imovel_id)
+                fps_extraidos.add(fp)
                 imovel = {
                     'id': imovel_id,
                     'titulo': titulo,
@@ -242,7 +252,7 @@ def extrair_imoveis(url=None, debug=False, top_n=None):
                     'link': link,
                     'imagem': imagem
                 }
-                
+
                 imoveis.append(imovel)
                 
                 if debug and idx < 3:
@@ -278,55 +288,80 @@ def carregar_ids_vistos(arquivo='ids_vistos.json'):
     Carrega IDs de imóveis já vistos do arquivo.
 
     Returns:
-        set: Conjunto de IDs já vistos. Vazio se arquivo não existe.
+        tuple: (set de IDs, set de fingerprints) já vistos. Vazios se arquivo não existe.
     """
     if not os.path.exists(arquivo):
-        return set()
+        return set(), set()
     try:
         with open(arquivo, 'r', encoding='utf-8') as f:
             dados = json.load(f)
-        return set(dados.get('ids', []))
+        ids = set(dados.get('ids', []))
+        fps = set(dados.get('fingerprints', []))
+        return ids, fps
     except Exception:
-        return set()
+        return set(), set()
 
 
-def salvar_ids_vistos(ids, arquivo='ids_vistos.json'):
+def salvar_ids_vistos(ids, arquivo='ids_vistos.json', fingerprints=None):
     """
-    Salva IDs de imóveis vistos no arquivo para uso futuro.
+    Salva IDs e fingerprints de imóveis vistos no arquivo para uso futuro.
 
     Args:
         ids (set): Conjunto de IDs a salvar.
         arquivo (str): Caminho do arquivo JSON.
+        fingerprints (set, optional): Conjunto de fingerprints a salvar.
     """
     from datetime import datetime
     dados = {
         'ultima_execucao': datetime.now().isoformat(),
-        'ids': list(ids)
+        'ids': list(ids),
+        'fingerprints': list(fingerprints) if fingerprints else [],
     }
     with open(arquivo, 'w', encoding='utf-8') as f:
         json.dump(dados, f, ensure_ascii=False, indent=2)
 
 
-def filtrar_novos_imoveis(imoveis, ids_vistos, max_novos=8):
+def filtrar_novos_imoveis(imoveis, ids_vistos, fingerprints_vistos=None, max_novos=8):
     """
     Filtra imóveis que ainda não foram vistos.
 
     Args:
         imoveis (list): Lista de imóveis extraídos.
         ids_vistos (set): Conjunto de IDs já vistos.
+        fingerprints_vistos (set, optional): Conjunto de fingerprints já visto.
         max_novos (int): Limite máximo de novos imóveis a retornar.
 
     Returns:
         list: Lista de imóveis novos, limitada a max_novos.
     """
+    if fingerprints_vistos is None:
+        fingerprints_vistos = set()
+
     novos = []
     ids_novos = set()
+    fps_novos = set()
+
     for im in imoveis:
-        if im['id'] not in ids_vistos and im['id'] != 'N/A' and im['id'] not in ids_novos:
-            ids_novos.add(im['id'])
-            novos.append(im)
-            if len(novos) == max_novos:
-                break
+        imovel_id = im['id']
+
+        if imovel_id == 'N/A':
+            continue
+
+        fp = _gerar_fingerprint(im.get('titulo', 'N/A'), im.get('preco', 'N/A'))
+
+        if imovel_id in ids_vistos:
+            continue
+        if fp in fingerprints_vistos or fp in fps_novos:
+            continue
+        if imovel_id in ids_novos:
+            continue
+
+        ids_novos.add(imovel_id)
+        fps_novos.add(fp)
+        novos.append(im)
+
+        if len(novos) == max_novos:
+            break
     return novos
 
 

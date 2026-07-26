@@ -2,7 +2,7 @@ import pytest
 import os
 import json
 
-from property_finder.scraper import carregar_ids_vistos, salvar_ids_vistos, filtrar_novos_imoveis
+from property_finder.scraper import carregar_ids_vistos, salvar_ids_vistos, filtrar_novos_imoveis, _gerar_fingerprint
 
 
 IMOVEIS_MOCK = [
@@ -18,15 +18,15 @@ class TestEtapa6:
 
     def test_carregar_ids_arquivo_inexistente(self, tmp_path):
         """Retorna conjunto vazio se arquivo não existe"""
-        resultado = carregar_ids_vistos(str(tmp_path / 'nao_existe.json'))
-        assert resultado == set()
+        ids, fps = carregar_ids_vistos(str(tmp_path / 'nao_existe.json'))
+        assert ids == set() and fps == set()
 
     def test_carregar_ids_arquivo_corrompido(self, tmp_path):
         """Retorna conjunto vazio se arquivo está corrompido"""
         arquivo = tmp_path / 'corrompido.json'
         arquivo.write_text("INVALIDO")
-        resultado = carregar_ids_vistos(str(arquivo))
-        assert resultado == set()
+        ids, fps = carregar_ids_vistos(str(arquivo))
+        assert ids == set() and fps == set()
 
     # --- salvar_ids_vistos ---
 
@@ -37,12 +37,13 @@ class TestEtapa6:
         assert os.path.exists(arquivo)
 
     def test_salvar_conteudo_correto(self, tmp_path):
-        """Arquivo salvo deve conter 'ids' e 'ultima_execucao'"""
+        """Arquivo salvo deve conter 'ids', 'fingerprints' e 'ultima_execucao'"""
         arquivo = str(tmp_path / 'ids.json')
         salvar_ids_vistos({'aaa', 'bbb'}, arquivo)
         with open(arquivo, 'r', encoding='utf-8') as f:
             dados = json.load(f)
         assert 'ids' in dados
+        assert 'fingerprints' in dados
         assert 'ultima_execucao' in dados
         assert set(dados['ids']) == {'aaa', 'bbb'}
 
@@ -51,7 +52,7 @@ class TestEtapa6:
         arquivo = str(tmp_path / 'ids.json')
         ids_originais = {'100', '200', '300'}
         salvar_ids_vistos(ids_originais, arquivo)
-        ids_carregados = carregar_ids_vistos(arquivo)
+        ids_carregados, _ = carregar_ids_vistos(arquivo)
         assert ids_carregados == ids_originais
 
     # --- filtrar_novos_imoveis ---
@@ -112,6 +113,25 @@ class TestEtapa6:
         assert novos[0]['titulo'] == IMOVEIS_MOCK[0]['titulo']
         assert novos[0]['preco'] == IMOVEIS_MOCK[0]['preco']
         assert novos[0]['link'] == IMOVEIS_MOCK[0]['link']
+
+    def test_filtrar_dedup_por_fingerprint_mesmo_conteudo(self):
+        """Dois imóveis com mesmo título e preço mas IDs diferentes são tratados como um"""
+        imoveis = [
+            {'id': '1111', 'titulo': 'Casa no Bacacheri', 'preco': 'R$ 450.000',
+             'link': 'http://x/1111', 'imagem': 'N/A'},
+            {'id': '2222', 'titulo': 'Casa no Bacacheri', 'preco': 'R$ 450.000',
+             'link': 'http://x/2222', 'imagem': 'N/A'},
+        ]
+        novos = filtrar_novos_imoveis(imoveis, set())
+        assert len(novos) == 1
+
+    def test_filtrar_fingerprint_cross_run(self):
+        """Imóvel que mudou data-id mas manteve título/preço é reconhecido como visto"""
+        fp = _gerar_fingerprint('Casa no Bacacheri', 'R$ 450.000')
+        imovel = {'id': '9999', 'titulo': 'Casa no Bacacheri', 'preco': 'R$ 450.000',
+                  'link': 'http://x/9999', 'imagem': 'N/A'}
+        novos = filtrar_novos_imoveis([imovel], set(), fingerprints_vistos={fp})
+        assert novos == []
 
 
 if __name__ == '__main__':

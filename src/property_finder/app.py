@@ -9,6 +9,7 @@ from .scraper import (
     carregar_ids_vistos,
     salvar_ids_vistos,
     filtrar_novos_imoveis,
+    _gerar_fingerprint,
 )
 from .config import BASE_URL, ARQUIVO_IDS_VISTOS, ARQUIVO_RESULTADO_JSON, DATA_DIR, OUTPUT_DIR
 
@@ -40,7 +41,7 @@ def main():
         imoveis = extrair_imoveis(debug=True)
         print(f"Status: ✓ Encontrados {len(imoveis)} imóveis na página\n")
 
-        ids_vistos = carregar_ids_vistos(ARQUIVO_IDS_VISTOS)
+        ids_vistos, fingerprints_vistos = carregar_ids_vistos(ARQUIVO_IDS_VISTOS)
         print(f"IDs já vistos anteriormente: {len(ids_vistos)}")
 
         if not imoveis:
@@ -50,11 +51,14 @@ def main():
         print("\nETAPA 6: Comparar com Anúncios Anteriores")
         print("-" * 80)
 
-        novos = filtrar_novos_imoveis(imoveis, ids_vistos, max_novos=8)
+        novos = filtrar_novos_imoveis(imoveis, ids_vistos, fingerprints_vistos, max_novos=8)
         print(f"Novos anúncios encontrados: {len(novos)}")
 
         ids_atuais = {im['id'] for im in imoveis if im['id'] != 'N/A'}
-        salvar_ids_vistos(ids_vistos | ids_atuais, ARQUIVO_IDS_VISTOS)
+        fps_atuais = {_gerar_fingerprint(im.get('titulo', 'N/A'), im.get('preco', 'N/A'))
+                      for im in imoveis}
+        salvar_ids_vistos(ids_vistos | ids_atuais, ARQUIVO_IDS_VISTOS,
+                          fingerprints=fingerprints_vistos | fps_atuais)
         print(f"IDs salvos para próxima execução: {len(ids_vistos | ids_atuais)}")
 
         if not novos:
