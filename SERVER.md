@@ -23,7 +23,7 @@ SMTP_PORT=587
 python server.py
 ```
 
-O servidor iniciará em: **http://localhost:5000**
+O servidor iniciará em: **http://localhost:5001**
 
 ## 📋 Interface
 
@@ -160,7 +160,7 @@ property-finder/
 
 **CORS / Conexão recusada**
 - Certifique-se de que o servidor está rodando na porta 5000
-- Tente acessar http://localhost:5000 diretamente
+- Tente acessar http://localhost:5001 diretamente
 
 ## 📝 Notas
 

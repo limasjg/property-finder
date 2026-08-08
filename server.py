@@ -17,7 +17,6 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from property_finder.scraper import (
-    validar_acesso_url,
     extrair_imoveis,
     carregar_ids_vistos,
     salvar_ids_vistos,
@@ -30,12 +29,70 @@ load_dotenv()
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['JSON_AS_ASCII'] = False
+APP_VERSION = '2026.08.08-cache-v2'
+ARQUIVO_HISTORICO = OUTPUT_DIR / 'historico_busca.json'
 
 
 def ensure_dirs():
     """Cria diretórios necessários."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@app.after_request
+def desabilitar_cache_api(response):
+    """Evita que o navegador reutilize respostas de uma versão antiga da API."""
+    if request.path.startswith('/api/'):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        response.headers['X-Property-Finder-Version'] = APP_VERSION
+    return response
+
+
+def salvar_historico(imoveis):
+    """Persiste os oito imóveis mais recentes da última busca bem-sucedida."""
+    historico = {
+        'data_execucao': datetime.now().isoformat(),
+        'total': min(len(imoveis), 8),
+        'imoveis': imoveis[:8],
+    }
+    arquivo_temporario = ARQUIVO_HISTORICO.with_suffix('.tmp')
+    with open(arquivo_temporario, 'w', encoding='utf-8') as f:
+        json.dump(historico, f, ensure_ascii=False, indent=2)
+    arquivo_temporario.replace(ARQUIVO_HISTORICO)
+
+
+def carregar_historico():
+    """Carrega o cache atual ou o resultado legado, se ainda não houver cache."""
+    arquivos = (
+        (ARQUIVO_HISTORICO, 'imoveis'),
+        (OUTPUT_DIR / 'resultado_busca.json', 'imoveis'),
+    )
+    for arquivo, campo in arquivos:
+        if not arquivo.exists():
+            continue
+        try:
+            with open(arquivo, 'r', encoding='utf-8') as f:
+                dados = json.load(f)
+            imoveis = dados.get(campo, [])
+            if isinstance(imoveis, list):
+                return imoveis[:8], dados.get('data_execucao')
+        except (OSError, json.JSONDecodeError, AttributeError):
+            continue
+    return [], None
+
+
+def mensagem_erro_scraping(erro):
+    """Converte erros técnicos de rede em uma orientação útil para o usuário."""
+    detalhe = str(erro)
+    if 'ERR_NETWORK_ACCESS_DENIED' in detalhe or 'WinError 10013' in detalhe:
+        return (
+            'O ambiente onde o servidor foi iniciado bloqueou o acesso externo. '
+            'Execute o server.py em um PowerShell/terminal com acesso à internet '
+            'e libere o Python/Chromium no firewall, se solicitado.'
+        )
+    return f'Erro ao acessar o Imovelweb: {detalhe}'
 
 
 @app.route('/')
@@ -61,6 +118,7 @@ def api_status():
 
         return jsonify({
             'success': True,
+            'version': APP_VERSION,
             'status': {
                 'url': BASE_URL,
                 'ids_vistos': len(ids_vistos),
@@ -78,14 +136,8 @@ def api_buscar():
     ensure_dirs()
 
     try:
-        # Valida acesso à URL
-        if not validar_acesso_url():
-            return jsonify({
-                'success': False,
-                'error': 'Falha ao acessar a URL. Verifique sua conexão.'
-            }), 500
-
-        # Extrai imóveis
+        # A própria extração valida o acesso. Fazer uma navegação separada aqui
+        # duplicava o tempo da busca e descartava o motivo real de erros de rede.
         imoveis = extrair_imoveis(debug=False)
         if not imoveis:
             return jsonify({
@@ -93,6 +145,10 @@ def api_buscar():
                 'novos': [],
                 'mensagem': 'Nenhum imóvel encontrado na página.'
             })
+
+        # O histórico representa a última página consultada, não apenas os
+        # anúncios que passaram pelo filtro de novidades.
+        salvar_historico(imoveis)
 
         # Carrega histórico
         ids_vistos, fingerprints_vistos = carregar_ids_vistos(ARQUIVO_IDS_VISTOS)
@@ -129,38 +185,31 @@ def api_buscar():
         traceback.print_exc()
         return jsonify({
             'success': False,
-            'error': f'Erro ao buscar imóveis: {str(e)}'
+            'error': mensagem_erro_scraping(e)
         }), 500
 
 
 @app.route('/api/historico')
 def api_historico():
-    """Busca os últimos 8 imóveis da página (histórico de todas as buscas)."""
+    """Retorna os últimos 8 imóveis salvos, sem depender de acesso externo."""
+    ensure_dirs()
     try:
-        # Valida acesso à URL
-        if not validar_acesso_url():
-            return jsonify({
-                'success': False,
-                'error': 'Falha ao acessar a URL. Verifique sua conexão.'
-            }), 500
-
-        # Extrai todos os imóveis da página
-        imoveis = extrair_imoveis(debug=False)
+        imoveis, data_execucao = carregar_historico()
         if not imoveis:
             return jsonify({
                 'success': True,
+                'version': APP_VERSION,
                 'historico': [],
-                'mensagem': 'Nenhum imóvel encontrado na página.'
+                'total': 0,
+                'mensagem': 'Nenhum histórico salvo. Faça uma busca primeiro.'
             })
-
-        # Retorna apenas os últimos 8 imóveis (os mais recentes)
-        imoveis_limitados = imoveis[-8:] if len(imoveis) > 8 else imoveis
 
         return jsonify({
             'success': True,
-            'historico': imoveis_limitados,
-            'total': len(imoveis_limitados),
-            'data_execucao': datetime.now().isoformat(),
+            'version': APP_VERSION,
+            'historico': imoveis,
+            'total': len(imoveis),
+            'data_execucao': data_execucao,
         })
 
     except Exception as e:
@@ -173,10 +222,20 @@ def api_historico():
 
 
 if __name__ == '__main__':
+    try:
+        server_port = int(os.getenv('PROPERTY_FINDER_PORT', '5001'))
+    except ValueError:
+        server_port = 5001
+
     print("=" * 80)
     print("PROPERTY FINDER - Web Server")
     print("=" * 80)
     print()
-    print("Acessar em: http://localhost:5000")
+    print(f"Acessar em: http://localhost:{server_port}")
+    print(f"Versão: {APP_VERSION}")
+    print(f"Arquivo: {Path(__file__).resolve()}")
     print()
-    app.run(debug=True, port=5000)
+    # O reloader pode reiniciar o processo durante o scraping e interromper o
+    # fetch do navegador. O debug continua opcional, mas sempre sem reloader.
+    debug_enabled = os.getenv('FLASK_DEBUG', '').lower() in {'1', 'true', 'yes'}
+    app.run(debug=debug_enabled, use_reloader=False, port=server_port)

@@ -29,12 +29,12 @@ Você verá:
 PROPERTY FINDER - Web Server
 ================================================================================
 
-Acessar em: http://localhost:5000
+Acessar em: http://localhost:5001
 ```
 
 ## 3️⃣ Abrir no navegador
 
-Clique em **http://localhost:5000** ou digite na barra de endereço.
+Clique em **http://localhost:5001** ou digite na barra de endereço.
 
 ## 4️⃣ Testar uma busca
 

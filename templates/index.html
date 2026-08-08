@@ -101,7 +101,7 @@
                     <span id="buscar-icon">🔎</span>
                     <span id="buscar-text">Buscar Imóveis</span>
                 </button>
-                <button onclick="carregarHistorico()"
+                <button id="historico-btn" onclick="carregarHistorico(this)"
                     class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-4 px-6 rounded-lg transition duration-200 flex items-center gap-2">
                     <span>📋</span>
                     <span>Histórico</span>
@@ -165,7 +165,7 @@
 
         async function carregarStatus() {
             try {
-                const response = await fetch('/api/status');
+                const response = await fetch('/api/status', { cache: 'no-store' });
                 const data = await response.json();
 
                 if (data.success) {
@@ -239,7 +239,7 @@
             }
         }
 
-        function exibirResultados(imoveis, total) {
+        function exibirResultados(imoveis, total, modo = 'novos') {
             const resultSection = document.getElementById('results-section');
             const grid = document.getElementById('imoveis-grid');
             const message = document.getElementById('result-message');
@@ -250,11 +250,24 @@
                 badge.textContent = '0 novos';
                 badge.className = 'badge-info';
                 grid.innerHTML = '';
+            } else if (modo === 'historico') {
+                message.textContent = `Últimos ${total} ${total === 1 ? 'imóvel encontrado' : 'imóveis encontrados'} na busca anterior.`;
+                badge.textContent = `${total} no histórico`;
+                badge.className = 'badge-info';
+                grid.innerHTML = criarCardsImoveis(imoveis);
             } else {
                 message.textContent = `Encontrados ${total} ${total === 1 ? 'imóvel novo' : 'imóveis novos'} que não estavam no histórico.`;
                 badge.textContent = `${total} novo${total > 1 ? 's' : ''}`;
                 badge.className = 'badge-success';
-                grid.innerHTML = imoveis.map((imovel, idx) => `
+                grid.innerHTML = criarCardsImoveis(imoveis);
+            }
+
+            resultSection.style.display = 'block';
+            resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function criarCardsImoveis(imoveis) {
+            return imoveis.map((imovel, idx) => `
                     <div class="fade-in card-hover bg-slate-800 rounded-lg overflow-hidden border border-slate-700 transition duration-200 cursor-pointer"
                          style="animation-delay: ${idx * 50}ms;">
                         <div class="aspect-video bg-slate-700 flex items-center justify-center overflow-hidden relative">
@@ -277,10 +290,6 @@
                         </div>
                     </div>
                 `).join('');
-            }
-
-            resultSection.style.display = 'block';
-            resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         function exibirErro(mensagem) {
@@ -292,11 +301,10 @@
             errorSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
-        async function carregarHistorico() {
+        async function carregarHistorico(historicoBtn) {
             if (state.isLoading) return;
 
             state.isLoading = true;
-            const historicoBtn = event.target.closest('button');
             const btnText = historicoBtn.querySelector('span:last-child');
             const btnIcon = historicoBtn.querySelector('span:first-child');
             const originalText = btnText.textContent;
@@ -313,12 +321,12 @@
             document.getElementById('results-section').style.display = 'none';
 
             try {
-                const response = await fetch('/api/historico');
+                const response = await fetch('/api/historico', { cache: 'no-store' });
                 const data = await response.json();
 
                 if (data.success) {
                     if (data.historico && data.historico.length > 0) {
-                        exibirResultados(data.historico, data.historico.length);
+                        exibirResultados(data.historico, data.historico.length, 'historico');
                     } else {
                         exibirResultadosVazios();
                     }

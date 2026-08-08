@@ -68,7 +68,7 @@ Para testar o scraper sem depender de email, use a interface web moderna:
 python server.py
 ```
 
-Acesse **http://localhost:5000** e teste:
+Acesse **http://localhost:5001** e teste:
 - Buscar novos imóveis com um clique
 - Visualizar resultados em cards modernos
 - Ver histórico de buscas anteriores
